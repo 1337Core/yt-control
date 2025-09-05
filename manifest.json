@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube Playback Speed Persist",
+  "description": "Persists YouTube playback speed across videos and refreshes.",
+  "version": "1.0.0",
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "js": ["contentScript.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
+
