@@ -1,28 +1,30 @@
-// Persist and enforce YouTube playback speed across refreshes and videos.
-// MV3 content script, vanilla JS, no UI.
-
 (function () {
-  const STORAGE_KEY = 'yt_playback_rate';
+  const STORAGE_KEY = "yt_playback_rate";
   const DEFAULT_RATE = 1;
+  const USER_INTENT_WINDOW_MS = 1200;
+  const REAPPLY_DELAY_MS = 200;
   const trackedVideos = new WeakSet();
 
-  const state = {
-    desiredRate: DEFAULT_RATE,
-    scanScheduled: false,
+  let desiredRate = DEFAULT_RATE;
+  let lastUserIntentAt = 0;
+  let reapplyTimer;
+
+  const isPlayerPage = () => {
+    const path = location.pathname || "";
+    return (
+      path.startsWith("/watch") ||
+      path.startsWith("/shorts") ||
+      path.startsWith("/embed/")
+    );
   };
 
-  function isPlayerPage() {
-    const path = location.pathname || '';
-    return path.startsWith('/watch') || path.startsWith('/shorts') || path.startsWith('/embed/');
-  }
-
-  function normalizeRate(value) {
+  const normalizeRate = (value) => {
     const rate = Number(value);
     return Number.isFinite(rate) && rate > 0 ? rate : DEFAULT_RATE;
-  }
+  };
 
-  function loadRate() {
-    return new Promise((resolve) => {
+  const loadRate = () =>
+    new Promise((resolve) => {
       try {
         chrome.storage?.local.get([STORAGE_KEY], (res) => {
           resolve(normalizeRate(res?.[STORAGE_KEY]));
@@ -31,97 +33,129 @@
         resolve(DEFAULT_RATE);
       }
     });
-  }
 
-  function saveRate(rate) {
+  const saveRate = (rate) => {
     try {
       chrome.storage?.local.set({ [STORAGE_KEY]: rate });
     } catch (_) {
-      // Storage can be unavailable in some contexts.
+      // if storage is not available
     }
-  }
+  };
 
-  function applyRate(video) {
-    if (!video) return;
-    if (video.playbackRate === state.desiredRate) return;
+  const applyRate = (video) => {
+    if (!video || video.playbackRate === desiredRate) return;
     try {
-      video.playbackRate = state.desiredRate;
+      video.playbackRate = desiredRate;
     } catch (_) {
-      // Some player states reject writes; retry on the next lifecycle event.
+      // some player states reject writes
     }
-  }
+  };
 
-  function handleRateChange(video) {
+  const scheduleReapply = (video) => {
+    clearTimeout(reapplyTimer);
+    reapplyTimer = setTimeout(() => applyRate(video), REAPPLY_DELAY_MS);
+  };
+
+  const handleRateChange = (video) => {
     const rate = normalizeRate(video.playbackRate);
-    if (rate === state.desiredRate) return;
-    state.desiredRate = rate;
-    saveRate(rate);
-  }
+    if (rate === desiredRate) return;
 
-  function attachToVideo(video) {
+    const isUserChange = Date.now() - lastUserIntentAt < USER_INTENT_WINDOW_MS;
+    if (isUserChange) {
+      desiredRate = rate;
+      saveRate(rate);
+    } else {
+      scheduleReapply(video);
+    }
+  };
+
+  const attach = (video) => {
     if (!video || trackedVideos.has(video)) return;
     trackedVideos.add(video);
 
     const reapply = () => applyRate(video);
-    video.addEventListener('loadedmetadata', reapply, { passive: true });
-    video.addEventListener('loadeddata', reapply, { passive: true });
-    video.addEventListener('emptied', reapply, { passive: true });
-    video.addEventListener('ratechange', () => handleRateChange(video), { passive: true });
+    video.addEventListener("loadedmetadata", reapply, { passive: true });
+    video.addEventListener("play", reapply, { passive: true });
+    video.addEventListener("ratechange", () => handleRateChange(video), {
+      passive: true,
+    });
 
     reapply();
-  }
+  };
 
-  function scanForVideos() {
-    state.scanScheduled = false;
+  const scan = () => {
     if (!isPlayerPage()) return;
-    document.querySelectorAll('video').forEach(attachToVideo);
-  }
+    document.querySelectorAll("video").forEach((video) => {
+      attach(video);
+      applyRate(video);
+    });
+  };
 
-  function scheduleScan() {
-    if (state.scanScheduled) return;
-    state.scanScheduled = true;
-    requestAnimationFrame(scanForVideos);
-  }
-
-  function observeVideos() {
-    const root = document.documentElement || document.body;
+  const observe = () => {
+    const root = document.documentElement;
     if (!root) return;
     const observer = new MutationObserver((mutations) => {
       if (!isPlayerPage()) return;
       for (const mutation of mutations) {
         for (const node of mutation.addedNodes) {
           if (!node || node.nodeType !== 1) continue;
-          if (node.tagName === 'VIDEO') {
-            attachToVideo(node);
+          if (node.tagName === "VIDEO") {
+            attach(node);
           } else if (node.querySelectorAll) {
-            node.querySelectorAll('video').forEach(attachToVideo);
+            node.querySelectorAll("video").forEach(attach);
           }
         }
       }
     });
     observer.observe(root, { childList: true, subtree: true });
-  }
+  };
 
-  function setupNavigationHooks() {
-    const onNavigate = () => {
-      if (!isPlayerPage()) return;
-      scheduleScan();
-      document.querySelectorAll('video').forEach(applyRate);
-    };
-    window.addEventListener('yt-navigate-finish', onNavigate, true);
-    window.addEventListener('yt-page-data-updated', onNavigate, true);
-    window.addEventListener('spfdone', onNavigate, true);
-  }
+  const recordUserIntent = (event) => {
+    const target = event.target;
+    const tag = target?.tagName;
+    if (
+      tag === "INPUT" ||
+      tag === "TEXTAREA" ||
+      tag === "SELECT" ||
+      target?.isContentEditable
+    ) {
+      return;
+    }
+    lastUserIntentAt = Date.now();
+  };
 
-  async function init() {
-    state.desiredRate = await loadRate();
-    scheduleScan();
-    observeVideos();
-    setupNavigationHooks();
-  }
+  const listenUserIntent = () => {
+    document.addEventListener("keydown", recordUserIntent, true);
+    document.addEventListener(
+      "pointerdown",
+      (event) => {
+        const target = event.target;
+        if (!target || !target.closest) return;
+        if (target.closest("video") || target.closest(".html5-video-player")) {
+          recordUserIntent(event);
+        }
+      },
+      true,
+    );
+  };
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init, { once: true });
+  const listenNavigation = () => {
+    const onNavigate = () => scan();
+    window.addEventListener("yt-navigate-finish", onNavigate, true);
+    window.addEventListener("yt-page-data-updated", onNavigate, true);
+    window.addEventListener("spfdone", onNavigate, true);
+  };
+
+  const init = async () => {
+    desiredRate = await loadRate();
+    scan();
+    observe();
+    listenNavigation();
+    listenUserIntent();
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init, { once: true });
   } else {
     init();
   }

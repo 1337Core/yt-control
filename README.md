@@ -1,20 +1,5 @@
 YT Speed Save
 
-What it does
-- Keeps your YouTube playback speed between videos and refreshes.
-- No UI; all logic runs as a content script.
-- Vanilla JS, Chrome Manifest V3.
+Keeps your YouTube playback speed between videos and refreshes.
 
-How to load in Chrome
-1. Open `chrome://extensions`.
-2. Enable `Developer mode` (top right).
-3. Click `Load unpacked` and select this folder (`yt-control`).
-4. Navigate to any YouTube video. Change speed using the player control or keyboard shortcuts. The chosen speed will persist across videos and refreshes.
-
-Files
-- `manifest.json`: MV3 configuration and content script registration.
-- `contentScript.js`: Applies stored playback rate and saves changes on `ratechange`.
-
-Notes
-- Runs on `*.youtube.com/*` but only applies on player pages (`/watch`, `/shorts`, `/embed`).
-- Uses `chrome.storage.local` to persist the last used playback rate.
+`chrome://extensions` -> Developer mode -> Load unpacked -> select this folder.
