@@ -1,25 +1,34 @@
-// Persist and enforce YouTube playback speed across refreshes and videos
-// MV3 content script, vanilla JS, no UI
+// Persist and enforce YouTube playback speed across refreshes and videos.
+// MV3 content script, vanilla JS, no UI.
 
 (function () {
   const STORAGE_KEY = 'yt_playback_rate';
-  let desiredRate = 1;
-  const seenVideos = new WeakSet();
+  const DEFAULT_RATE = 1;
+  const trackedVideos = new WeakSet();
 
-  const isPlayerPage = () => {
-    const p = location.pathname || '';
-    return p.startsWith('/watch') || p.startsWith('/shorts') || p.startsWith('/embed/');
+  const state = {
+    desiredRate: DEFAULT_RATE,
+    scanScheduled: false,
   };
+
+  function isPlayerPage() {
+    const path = location.pathname || '';
+    return path.startsWith('/watch') || path.startsWith('/shorts') || path.startsWith('/embed/');
+  }
+
+  function normalizeRate(value) {
+    const rate = Number(value);
+    return Number.isFinite(rate) && rate > 0 ? rate : DEFAULT_RATE;
+  }
 
   function loadRate() {
     return new Promise((resolve) => {
       try {
         chrome.storage?.local.get([STORAGE_KEY], (res) => {
-          const r = Number(res?.[STORAGE_KEY]);
-          resolve(Number.isFinite(r) && r > 0 ? r : 1);
+          resolve(normalizeRate(res?.[STORAGE_KEY]));
         });
       } catch (_) {
-        resolve(1);
+        resolve(DEFAULT_RATE);
       }
     });
   }
@@ -28,94 +37,92 @@
     try {
       chrome.storage?.local.set({ [STORAGE_KEY]: rate });
     } catch (_) {
-      // no-op if storage is unavailable
+      // Storage can be unavailable in some contexts.
     }
   }
 
-  function applyRate(video, rate) {
+  function applyRate(video) {
     if (!video) return;
-    if (video.playbackRate !== rate) {
-      try {
-        video.playbackRate = rate;
-      } catch (_) {
-        // Some states may reject; ignore and retry on next lifecycle event
-      }
+    if (video.playbackRate === state.desiredRate) return;
+    try {
+      video.playbackRate = state.desiredRate;
+    } catch (_) {
+      // Some player states reject writes; retry on the next lifecycle event.
     }
+  }
+
+  function handleRateChange(video) {
+    const rate = normalizeRate(video.playbackRate);
+    if (rate === state.desiredRate) return;
+    state.desiredRate = rate;
+    saveRate(rate);
   }
 
   function attachToVideo(video) {
-    if (!video || seenVideos.has(video)) return;
-    seenVideos.add(video);
+    if (!video || trackedVideos.has(video)) return;
+    trackedVideos.add(video);
 
-    // Re-apply when the source/metadata loads or changes
-    const reapply = () => applyRate(video, desiredRate);
+    const reapply = () => applyRate(video);
     video.addEventListener('loadedmetadata', reapply, { passive: true });
     video.addEventListener('loadeddata', reapply, { passive: true });
     video.addEventListener('emptied', reapply, { passive: true });
+    video.addEventListener('ratechange', () => handleRateChange(video), { passive: true });
 
-    // Persist when user changes speed via UI/shortcuts
-    video.addEventListener('ratechange', () => {
-      const r = Number(video.playbackRate);
-      if (Number.isFinite(r) && r > 0 && r !== desiredRate) {
-        desiredRate = r;
-        saveRate(desiredRate);
-      }
-    }, { passive: true });
-
-    // Initial apply
     reapply();
   }
 
-  function scanAndAttach() {
-    // Only act on player pages to avoid touching preview thumbnails, etc.
+  function scanForVideos() {
+    state.scanScheduled = false;
     if (!isPlayerPage()) return;
     document.querySelectorAll('video').forEach(attachToVideo);
   }
 
+  function scheduleScan() {
+    if (state.scanScheduled) return;
+    state.scanScheduled = true;
+    requestAnimationFrame(scanForVideos);
+  }
+
   function observeVideos() {
-    const obs = new MutationObserver((mutations) => {
+    const root = document.documentElement || document.body;
+    if (!root) return;
+    const observer = new MutationObserver((mutations) => {
       if (!isPlayerPage()) return;
-      for (const m of mutations) {
-        for (const node of m.addedNodes) {
-          if (node && node.nodeType === 1) {
-            if (node.tagName === 'VIDEO') {
-              attachToVideo(node);
-            } else {
-              const vids = node.querySelectorAll?.('video');
-              vids && vids.forEach(attachToVideo);
-            }
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+          if (!node || node.nodeType !== 1) continue;
+          if (node.tagName === 'VIDEO') {
+            attachToVideo(node);
+          } else if (node.querySelectorAll) {
+            node.querySelectorAll('video').forEach(attachToVideo);
           }
         }
       }
     });
-    obs.observe(document.documentElement || document.body, {
-      childList: true,
-      subtree: true,
-    });
+    observer.observe(root, { childList: true, subtree: true });
   }
 
   function setupNavigationHooks() {
-    // YouTube SPA navigation events
-    const reapplyAll = () => {
+    const onNavigate = () => {
       if (!isPlayerPage()) return;
-      document.querySelectorAll('video').forEach((v) => applyRate(v, desiredRate));
+      scheduleScan();
+      document.querySelectorAll('video').forEach(applyRate);
     };
-    window.addEventListener('yt-navigate-finish', reapplyAll, true);
-    window.addEventListener('spfdone', reapplyAll, true); // legacy fallback
+    window.addEventListener('yt-navigate-finish', onNavigate, true);
+    window.addEventListener('yt-page-data-updated', onNavigate, true);
+    window.addEventListener('spfdone', onNavigate, true);
   }
 
   async function init() {
-    desiredRate = await loadRate();
-    scanAndAttach();
+    state.desiredRate = await loadRate();
+    scheduleScan();
     observeVideos();
     setupNavigationHooks();
   }
 
-  // Kick off after DOM is ready enough
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init, { once: true });
   } else {
     init();
   }
 })();
-

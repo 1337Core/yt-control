@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "YouTube Playback Speed Persist",
-  "description": "Persists YouTube playback speed across videos and refreshes.",
+  "name": "YT Speed Save",
+  "description": "Keeps your YouTube playback speed between videos and refreshes.",
   "version": "1.0.0",
   "permissions": ["storage"],
   "content_scripts": [
@@ -12,4 +12,3 @@
     }
   ]
 }
-

@@ -1,7 +1,7 @@
-YouTube Playback Speed Persist (YPSP)
+YT Speed Save
 
 What it does
-- Persists YouTube playback speed across refreshes and between different videos.
+- Keeps your YouTube playback speed between videos and refreshes.
 - No UI; all logic runs as a content script.
 - Vanilla JS, Chrome Manifest V3.
 
