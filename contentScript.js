@@ -1,6 +1,8 @@
 (function () {
   const STORAGE_KEY = "yt_playback_rate";
   const DEFAULT_RATE = 1;
+  const MIN_RATE = 0.1;
+  const MAX_RATE = 16;
   const USER_INTENT_WINDOW_MS = 1200;
   const REAPPLY_DELAY_MS = 200;
   const trackedVideos = new WeakSet();
@@ -20,7 +22,8 @@
 
   const normalizeRate = (value) => {
     const rate = Number(value);
-    return Number.isFinite(rate) && rate > 0 ? rate : DEFAULT_RATE;
+    if (!Number.isFinite(rate) || rate <= 0) return DEFAULT_RATE;
+    return Math.min(MAX_RATE, Math.max(MIN_RATE, rate));
   };
 
   const loadRate = () =>
@@ -36,7 +39,7 @@
 
   const saveRate = (rate) => {
     try {
-      chrome.storage?.local.set({ [STORAGE_KEY]: rate });
+      chrome.storage?.local.set({ [STORAGE_KEY]: normalizeRate(rate) });
     } catch (_) {
       // if storage is not available
     }
@@ -88,6 +91,16 @@
     document.querySelectorAll("video").forEach((video) => {
       attach(video);
       applyRate(video);
+    });
+  };
+
+  const listenStorageChanges = () => {
+    if (!chrome?.storage?.onChanged) return;
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== "local") return;
+      if (!Object.prototype.hasOwnProperty.call(changes, STORAGE_KEY)) return;
+      desiredRate = normalizeRate(changes[STORAGE_KEY]?.newValue);
+      scan();
     });
   };
 
@@ -152,6 +165,7 @@
     observe();
     listenNavigation();
     listenUserIntent();
+    listenStorageChanges();
   };
 
   if (document.readyState === "loading") {

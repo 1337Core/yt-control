@@ -1,0 +1,102 @@
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  min-width: 280px;
+}
+
+.panel {
+  padding: 12px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.logo {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+}
+
+label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.input-row,
+.preset-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+input[type="number"] {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+}
+
+button {
+  border: 1px solid #777;
+  border-radius: 6px;
+  background: #f3f3f3;
+  color: #111;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #e8e8e8;
+}
+
+.preset-row button {
+  flex: 1;
+  padding: 6px 4px;
+}
+
+.ghost {
+  width: 100%;
+}
+
+#status {
+  margin: 8px 0 2px;
+  min-height: 1.2em;
+  font-size: 12px;
+}
+
+.hint {
+  margin: 0;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+@media (prefers-color-scheme: dark) {
+  button {
+    background: #2a2a2a;
+    color: #f2f2f2;
+    border-color: #555;
+  }
+
+  button:hover {
+    background: #333;
+  }
+
+  input[type="number"] {
+    background: #1f1f1f;
+    color: #f2f2f2;
+    border: 1px solid #555;
+  }
+}

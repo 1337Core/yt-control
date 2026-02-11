@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">YT Speed Icon</title>
+  <desc id="desc">A simple speedometer with a play symbol.</desc>
+  <defs>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ff4242" />
+      <stop offset="100%" stop-color="#d81313" />
+    </linearGradient>
+  </defs>
+
+  <circle cx="64" cy="64" r="56" fill="#111" />
+  <circle cx="64" cy="64" r="50" fill="none" stroke="url(#ring)" stroke-width="8" />
+
+  <path d="M64 26 A38 38 0 0 1 98 52" stroke="#fff" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.9" />
+  <path d="M64 26 A38 38 0 0 0 30 52" stroke="#fff" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.35" />
+
+  <circle cx="64" cy="64" r="6" fill="#fff" />
+  <path d="M64 64 L90 44" stroke="#ff5959" stroke-width="6" stroke-linecap="round" />
+
+  <path d="M49 84 L49 46 L82 65 Z" fill="#fff" opacity="0.92" />
+</svg>
