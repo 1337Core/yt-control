@@ -18,6 +18,8 @@
   const CAL_PERIOD_MS = CAL_ONE_WAY_MS * 2;
   const CAL_FIRST_CENTER_MS = CAL_ONE_WAY_MS / 2;
   const CAL_CENTER_INTERVAL_MS = CAL_ONE_WAY_MS;
+  const CAL_CLICK_SCHEDULE_LEAD_MS = 10;
+  const CAL_CANVAS_PAD = 14;
 
   const rateInput = document.getElementById("rateInput");
   const applyBtn = document.getElementById("applyBtn");
@@ -49,6 +51,7 @@
     previewOffsetMs: DEFAULT_VIDEO_DELAY_MS,
     savedDelayMs: DEFAULT_VIDEO_DELAY_MS,
     audioContext: null,
+    referenceLineX: null,
   };
 
   const normalizeRate = (value) => {
@@ -145,7 +148,7 @@
     }
 
     try {
-      const now = context.currentTime + 0.01;
+      const now = context.currentTime + CAL_CLICK_SCHEDULE_LEAD_MS / 1000;
       const oscillator = context.createOscillator();
       const gain = context.createGain();
 
@@ -180,6 +183,13 @@
     return Math.floor((timeMs - first) / CAL_CENTER_INTERVAL_MS);
   };
 
+  const getSweepX = (nowMs, width) => {
+    const adjustedTime = nowMs - calibrationState.previewOffsetMs;
+    const adjustedElapsedMs = adjustedTime - calibrationState.startAtMs;
+    const progress = getSweepProgress(adjustedElapsedMs);
+    return CAL_CANVAS_PAD + progress * (width - CAL_CANVAS_PAD * 2);
+  };
+
   const drawCalibration = (nowMs) => {
     if (!calibrationCanvas) return;
     const ctx = calibrationCanvas.getContext("2d");
@@ -187,7 +197,6 @@
 
     const width = calibrationCanvas.width;
     const height = calibrationCanvas.height;
-    const pad = 14;
     const centerX = width / 2;
     const lineY = Math.round(height * 0.6);
 
@@ -199,8 +208,8 @@
     ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(pad, lineY);
-    ctx.lineTo(width - pad, lineY);
+    ctx.moveTo(CAL_CANVAS_PAD, lineY);
+    ctx.lineTo(width - CAL_CANVAS_PAD, lineY);
     ctx.stroke();
 
     ctx.strokeStyle = "rgba(233, 95, 95, 0.95)";
@@ -210,18 +219,28 @@
     ctx.lineTo(centerX, lineY + 23);
     ctx.stroke();
 
-    const adjustedTime = nowMs - calibrationState.previewOffsetMs;
-    const progress = getSweepProgress(adjustedTime - calibrationState.startAtMs);
-    const x = pad + progress * (width - pad * 2);
+    const movingX = getSweepX(nowMs, width);
 
-    ctx.fillStyle = "#f6f8ff";
+    if (calibrationState.referenceLineX !== null) {
+      ctx.strokeStyle = "rgba(129, 215, 255, 0.95)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(calibrationState.referenceLineX, lineY - 18);
+      ctx.lineTo(calibrationState.referenceLineX, lineY + 18);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = "rgba(246, 248, 255, 0.95)";
+    ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(x, lineY, 8, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.moveTo(movingX, lineY - 20);
+    ctx.lineTo(movingX, lineY + 20);
+    ctx.stroke();
 
     ctx.fillStyle = "rgba(255, 255, 255, 0.72)";
     ctx.font = "11px system-ui, -apple-system, Segoe UI, sans-serif";
     ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
     ctx.fillText("center", centerX, lineY - 29);
   };
 
@@ -242,8 +261,13 @@
     if (!calibrationPanel) return;
 
     if (calibrationStepEl) {
-      calibrationStepEl.textContent =
-        "Move the slider until click and center crossing feel simultaneous.";
+      if (!calibrationState.active) {
+        calibrationStepEl.textContent =
+          "Start calibration. Click the sweep to drop a marker line where the moving line is.";
+      } else {
+        calibrationStepEl.textContent =
+          "Click the canvas to place or replace a marker line at the moving line position.";
+      }
     }
 
     if (calibrationValueEl) {
@@ -274,6 +298,7 @@
     calibrationState.lastAudioCrossingIndex = getCrossingIndex(
       calibrationState.startAtMs,
     );
+    calibrationState.referenceLineX = null;
 
     const context = ensureCalibrationAudioContext();
     if (context?.state === "suspended") {
@@ -312,6 +337,15 @@
 
   const nudgeCalibration = (deltaMs) => {
     setCalibrationPreviewDelay(calibrationState.previewOffsetMs + deltaMs);
+  };
+
+  const setCalibrationReferenceLine = () => {
+    if (!calibrationCanvas || !calibrationState.active) return;
+    calibrationState.referenceLineX = getSweepX(
+      performance.now(),
+      calibrationCanvas.width,
+    );
+    setStatus("Marker line updated");
   };
 
   const applyCalibrationDelay = () => {
@@ -367,6 +401,8 @@
 
     calibrationNudgeDownBtn?.addEventListener("click", () => nudgeCalibration(-10));
     calibrationNudgeUpBtn?.addEventListener("click", () => nudgeCalibration(10));
+
+    calibrationCanvas?.addEventListener("click", setCalibrationReferenceLine);
 
     calibrationResetPreviewBtn?.addEventListener("click", () => {
       setCalibrationPreviewDelay(calibrationState.savedDelayMs);
