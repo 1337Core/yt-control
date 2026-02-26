@@ -3,67 +3,88 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>YT Speed</title>
+    <title>YT Control</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
     <main class="panel">
-      <div class="title-row">
+      <header class="title-row">
         <img class="logo" src="icon.svg" alt="" />
-        <h1>YT Speed</h1>
-      </div>
-
-      <section class="section">
-        <label for="rateInput">Playback speed</label>
-        <div class="input-row">
-          <input
-            id="rateInput"
-            type="number"
-            min="0.1"
-            max="16"
-            step="0.05"
-            inputmode="decimal"
-          />
-          <button id="applyBtn" type="button">Apply</button>
+        <div>
+          <h1>YT Control</h1>
+          <p class="subhead">Fast playback and clean AV sync.</p>
         </div>
+      </header>
 
-        <div class="preset-row" aria-label="Quick speed presets">
-          <button type="button" data-rate="2">2x</button>
-          <button type="button" data-rate="2.5">2.5x</button>
-          <button type="button" data-rate="3">3x</button>
-          <button type="button" data-rate="4">4x</button>
+      <section class="section" aria-label="Playback speed controls">
+        <div class="label-row">
+          <label for="rateInput">Playback speed</label>
+          <output id="rateValue" for="rateInput">1x</output>
         </div>
-
-        <button id="resetBtn" class="ghost" type="button">Reset speed to 1x</button>
+        <input
+          id="rateInput"
+          class="slider"
+          type="range"
+          min="0.1"
+          max="8"
+          step="0.05"
+          value="1"
+        />
+        <div class="range-meta" aria-hidden="true">
+          <span>0.1x</span>
+          <span>8x</span>
+        </div>
       </section>
 
-      <section class="section">
-        <label for="delayInput">Bluetooth video delay (ms)</label>
-        <div class="input-row">
-          <input
-            id="delayInput"
-            type="number"
-            min="0"
-            max="2500"
-            step="10"
-            inputmode="numeric"
-          />
-          <button id="delayApplyBtn" type="button">Apply</button>
+      <section class="section" aria-label="Delay controls">
+        <div class="label-row">
+          <label for="delayInput">Bluetooth delay</label>
+          <output id="delayValue" for="delayInput">0 ms</output>
+        </div>
+        <input
+          id="delayInput"
+          class="slider"
+          type="range"
+          min="0"
+          max="2500"
+          step="10"
+          value="0"
+        />
+        <div class="range-meta" aria-hidden="true">
+          <span>0 ms</span>
+          <span>2500 ms</span>
         </div>
 
-        <div class="preset-row" aria-label="Quick delay presets">
-          <button type="button" data-delay="120">120</button>
-          <button type="button" data-delay="180">180</button>
-          <button type="button" data-delay="240">240</button>
-          <button type="button" data-delay="300">300</button>
+        <div class="saved-delay-section" aria-label="Saved Bluetooth delays">
+          <label for="delayPresetNameInput">Save current delay</label>
+          <div class="save-delay-row">
+            <input
+              id="delayPresetNameInput"
+              type="text"
+              maxlength="24"
+              placeholder="Name this delay (e.g., AirPods)"
+            />
+            <button id="saveDelayPresetBtn" type="button">Save</button>
+          </div>
+          <div id="delayPresetList" class="saved-delay-list"></div>
         </div>
 
-        <div class="stacked-row">
-          <button id="delayResetBtn" class="ghost" type="button">
-            Reset delay to 0 ms
-          </button>
-          <button id="calibrateBtn" type="button">Start Popup Calibration</button>
+        <div class="mic-row">
+          <label for="micInputSelect">Mic input</label>
+          <div class="mic-input-row">
+            <select id="micInputSelect" aria-label="Microphone input"></select>
+            <button id="refreshMicInputsBtn" type="button">Refresh</button>
+          </div>
         </div>
+
+        <div class="action-row">
+          <button id="autoCalibrateBtn" class="soft" type="button">Auto Calibrate</button>
+          <button id="calibrateBtn" type="button">Manual Calibration</button>
+        </div>
+
+        <p id="autoCalibrationStatus" class="calibration-meta auto-calibration-meta">
+          Auto calibration listens for test tones through your mic and estimates delay.
+        </p>
 
         <div id="calibrationPanel" class="calibration-panel" hidden>
           <canvas
@@ -75,31 +96,27 @@
           <p id="calibrationStep" class="calibration-meta">
             Click the sweep to drop a marker line where the moving line is.
           </p>
+
+          <div class="label-row small-gap">
+            <label for="calibrationOffsetRange">Preview offset</label>
+            <output id="calibrationValue" for="calibrationOffsetRange">0 ms</output>
+          </div>
           <input
             id="calibrationOffsetRange"
+            class="slider"
             type="range"
             min="0"
             max="800"
             step="5"
             value="0"
           />
-          <p id="calibrationValue" class="calibration-meta"></p>
-          <div class="calibration-row">
-            <button id="calibrationNudgeDownBtn" type="button">-10 ms</button>
-            <button id="calibrationNudgeUpBtn" type="button">+10 ms</button>
-          </div>
-          <button id="calibrationResetPreviewBtn" class="ghost" type="button">
-            Reset To Saved Delay
-          </button>
-          <button id="calibrationApplyBtn" type="button">
-            Apply This Delay
-          </button>
+          <button id="calibrationApplyBtn" type="button">Apply Preview Delay</button>
         </div>
       </section>
 
       <p id="status" role="status" aria-live="polite"></p>
       <p class="hint">
-        Calibration runs in this popup: click to set a marker line, click again to replace it.
+        Keep this popup open while calibrating. Auto mode is usually fastest and most accurate.
       </p>
     </main>
     <script src="popup.js"></script>

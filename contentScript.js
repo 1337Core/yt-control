@@ -6,7 +6,7 @@
 
   const DEFAULT_RATE = 1;
   const MIN_RATE = 0.1;
-  const MAX_RATE = 16;
+  const MAX_RATE = 8;
 
   const DEFAULT_VIDEO_DELAY_MS = 0;
   const MIN_VIDEO_DELAY_MS = 0;
