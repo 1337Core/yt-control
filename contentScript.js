@@ -1,7 +1,7 @@
 (function () {
   const STORAGE_KEYS = {
-    rate: "yt_playback_rate",
-    videoDelayMs: "yt_video_delay_ms",
+    rate: "yt_control_playback_rate",
+    videoDelayMs: "yt_control_video_delay_ms",
   };
 
   const DEFAULT_RATE = 1;
@@ -23,6 +23,9 @@
   let lastUserIntentAt = 0;
   let reapplyTimer;
 
+  const hasOwn = (object, key) =>
+    Boolean(object && Object.prototype.hasOwnProperty.call(object, key));
+
   const isPlayerPage = () => {
     const path = location.pathname || "";
     return (
@@ -41,9 +44,7 @@
   const normalizeVideoDelay = (value) => {
     const delay = Number(value);
     if (!Number.isFinite(delay)) return DEFAULT_VIDEO_DELAY_MS;
-    return Math.round(
-      Math.min(MAX_VIDEO_DELAY_MS, Math.max(MIN_VIDEO_DELAY_MS, delay)),
-    );
+    return Math.min(MAX_VIDEO_DELAY_MS, Math.max(MIN_VIDEO_DELAY_MS, delay));
   };
 
   const loadSettings = () =>
@@ -250,7 +251,7 @@
       if (this.canvas) return;
 
       this.canvas = document.createElement("canvas");
-      this.canvas.className = "yt-speed-delay-canvas";
+      this.canvas.className = "yt-control-delay-canvas";
       Object.assign(this.canvas.style, {
         position: "absolute",
         left: "0px",
@@ -483,14 +484,12 @@
 
       let shouldRescan = false;
 
-      if (Object.prototype.hasOwnProperty.call(changes, STORAGE_KEYS.rate)) {
+      if (hasOwn(changes, STORAGE_KEYS.rate)) {
         desiredRate = normalizeRate(changes[STORAGE_KEYS.rate]?.newValue);
         shouldRescan = true;
       }
 
-      if (
-        Object.prototype.hasOwnProperty.call(changes, STORAGE_KEYS.videoDelayMs)
-      ) {
+      if (hasOwn(changes, STORAGE_KEYS.videoDelayMs)) {
         desiredVideoDelayMs = normalizeVideoDelay(
           changes[STORAGE_KEYS.videoDelayMs]?.newValue,
         );

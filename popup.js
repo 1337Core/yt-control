@@ -1,9 +1,8 @@
 (() => {
   const STORAGE_KEYS = {
-    rate: "yt_playback_rate",
-    videoDelayMs: "yt_video_delay_ms",
-    micDeviceId: "yt_mic_device_id",
-    delayPresets: "yt_delay_presets",
+    rate: "yt_control_playback_rate",
+    videoDelayMs: "yt_control_video_delay_ms",
+    micDeviceId: "yt_control_mic_device_id",
   };
 
   const DEFAULT_RATE = 1;
@@ -13,8 +12,6 @@
   const DEFAULT_VIDEO_DELAY_MS = 0;
   const MIN_VIDEO_DELAY_MS = 0;
   const MAX_VIDEO_DELAY_MS = 2500;
-  const MAX_DELAY_PRESETS = 8;
-  const MAX_DELAY_PRESET_NAME_CHARS = 24;
 
   const STATUS_MS = 1800;
   const SLIDER_WRITE_DEBOUNCE_MS = 120;
@@ -44,9 +41,6 @@
   const rateValueEl = document.getElementById("rateValue");
   const delayInput = document.getElementById("delayInput");
   const delayValueEl = document.getElementById("delayValue");
-  const delayPresetNameInput = document.getElementById("delayPresetNameInput");
-  const saveDelayPresetBtn = document.getElementById("saveDelayPresetBtn");
-  const delayPresetList = document.getElementById("delayPresetList");
 
   const autoCalibrateBtn = document.getElementById("autoCalibrateBtn");
   const autoCalibrationStatusEl = document.getElementById("autoCalibrationStatus");
@@ -66,6 +60,7 @@
   let statusTimer;
   let rateWriteTimer;
   let delayWriteTimer;
+  let currentDelayMs = DEFAULT_VIDEO_DELAY_MS;
 
   const calibrationState = {
     active: false,
@@ -95,7 +90,6 @@
   };
 
   let desiredMicDeviceId = "";
-  let delayPresets = [];
 
   const normalizeRate = (value) => {
     const parsed = Number(value);
@@ -106,9 +100,7 @@
   const normalizeDelay = (value) => {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return DEFAULT_VIDEO_DELAY_MS;
-    return Math.round(
-      Math.min(MAX_VIDEO_DELAY_MS, Math.max(MIN_VIDEO_DELAY_MS, parsed)),
-    );
+    return Math.min(MAX_VIDEO_DELAY_MS, Math.max(MIN_VIDEO_DELAY_MS, parsed));
   };
 
   const toDisplayRate = (value) => {
@@ -117,121 +109,6 @@
   };
 
   const toDisplayDelay = (value) => String(normalizeDelay(value));
-
-  const normalizeDelayPresetName = (value) => {
-    if (typeof value !== "string") return "";
-    const compact = value.replace(/\s+/g, " ").trim();
-    return compact.slice(0, MAX_DELAY_PRESET_NAME_CHARS);
-  };
-
-  const createDelayPresetId = () =>
-    `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
-
-  const normalizeDelayPresets = (value) => {
-    if (!Array.isArray(value)) return [];
-
-    const results = [];
-    const seenIds = new Set();
-
-    for (const item of value) {
-      if (!item || typeof item !== "object") continue;
-
-      const name = normalizeDelayPresetName(item.name);
-      if (!name) continue;
-
-      const preset = {
-        id:
-          typeof item.id === "string" && item.id.trim()
-            ? item.id
-            : createDelayPresetId(),
-        name,
-        delayMs: normalizeDelay(item.delayMs),
-      };
-
-      if (seenIds.has(preset.id)) continue;
-      seenIds.add(preset.id);
-      results.push(preset);
-
-      if (results.length >= MAX_DELAY_PRESETS) break;
-    }
-
-    return results;
-  };
-
-  const saveDelayPresets = (sourceText = "") => {
-    chrome.storage.local.set({ [STORAGE_KEYS.delayPresets]: delayPresets }, () => {
-      if (sourceText) {
-        setStatus(sourceText);
-      }
-    });
-  };
-
-  const syncActiveDelayPreset = () => {
-    if (!delayPresetList) return;
-    const activeDelay = normalizeDelay(delayInput?.value ?? calibrationState.savedDelayMs);
-
-    delayPresetList
-      .querySelectorAll(".saved-delay-apply")
-      .forEach((button) => {
-        if (!(button instanceof HTMLElement)) return;
-        const preset = delayPresets.find((item) => item.id === button.dataset.presetId);
-        const isActive = Boolean(preset && preset.delayMs === activeDelay);
-        button.classList.toggle("is-active", isActive);
-      });
-  };
-
-  const renderDelayPresets = () => {
-    if (!delayPresetList) return;
-
-    delayPresetList.innerHTML = "";
-
-    if (!delayPresets.length) {
-      const emptyState = document.createElement("p");
-      emptyState.className = "saved-delay-empty";
-      emptyState.textContent = "No saved delays yet.";
-      delayPresetList.appendChild(emptyState);
-      return;
-    }
-
-    const activeDelay = normalizeDelay(delayInput?.value ?? calibrationState.savedDelayMs);
-
-    delayPresets.forEach((preset) => {
-      const row = document.createElement("div");
-      row.className = "saved-delay-item";
-
-      const applyBtn = document.createElement("button");
-      applyBtn.type = "button";
-      applyBtn.className = "saved-delay-apply";
-      if (preset.delayMs === activeDelay) {
-        applyBtn.classList.add("is-active");
-      }
-      applyBtn.dataset.action = "apply-delay-preset";
-      applyBtn.dataset.presetId = preset.id;
-
-      const nameEl = document.createElement("span");
-      nameEl.className = "saved-delay-name";
-      nameEl.textContent = preset.name;
-
-      const valueEl = document.createElement("span");
-      valueEl.className = "saved-delay-ms";
-      valueEl.textContent = `${toDisplayDelay(preset.delayMs)} ms`;
-
-      applyBtn.append(nameEl, valueEl);
-
-      const removeBtn = document.createElement("button");
-      removeBtn.type = "button";
-      removeBtn.className = "saved-delay-remove";
-      removeBtn.dataset.action = "remove-delay-preset";
-      removeBtn.dataset.presetId = preset.id;
-      removeBtn.textContent = "Remove";
-      removeBtn.setAttribute("aria-label", `Remove delay preset ${preset.name}`);
-
-      row.append(applyBtn, removeBtn);
-      delayPresetList.appendChild(row);
-    });
-
-    syncActiveDelayPreset();
-  };
 
   const setRateUi = (value) => {
     const normalized = normalizeRate(value);
@@ -245,13 +122,121 @@
 
   const setDelayUi = (value) => {
     const normalized = normalizeDelay(value);
+    currentDelayMs = normalized;
     if (delayInput) {
       delayInput.value = toDisplayDelay(normalized);
     }
     if (delayValueEl) {
       delayValueEl.textContent = `${toDisplayDelay(normalized)} ms`;
     }
-    syncActiveDelayPreset();
+  };
+
+  const startInlineValueEditor = ({
+    outputEl,
+    currentValue,
+    min,
+    max,
+    step,
+    normalizeValue,
+    formatValue,
+    invalidMessage,
+    onCommit,
+  }) => {
+    if (!outputEl || outputEl.dataset.editing === "true") return;
+
+    const input = document.createElement("input");
+    input.type = "number";
+    input.className = "value-editor-input";
+    input.min = String(min);
+    input.max = String(max);
+    input.step = String(step);
+    input.value = formatValue(currentValue);
+
+    outputEl.dataset.editing = "true";
+    outputEl.hidden = true;
+    outputEl.insertAdjacentElement("afterend", input);
+
+    let finalized = false;
+    const finish = (commit) => {
+      if (finalized) return;
+      finalized = true;
+
+      if (commit) {
+        const rawValue = input.value.trim();
+        const parsed = Number(rawValue);
+        if (rawValue && Number.isFinite(parsed)) {
+          onCommit(normalizeValue(parsed));
+        } else if (rawValue) {
+          setStatus(invalidMessage);
+        }
+      }
+
+      input.remove();
+      outputEl.hidden = false;
+      delete outputEl.dataset.editing;
+    };
+
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        finish(true);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        finish(false);
+      }
+    });
+
+    input.addEventListener("blur", () => {
+      finish(true);
+    });
+
+    input.focus();
+    input.select();
+  };
+
+  const setupInlineValueEditor = ({
+    outputEl,
+    title,
+    currentValue,
+    min,
+    max,
+    step,
+    normalizeValue,
+    formatValue,
+    invalidMessage,
+    onCommit,
+  }) => {
+    if (!outputEl) return;
+
+    const beginEdit = () => {
+      startInlineValueEditor({
+        outputEl,
+        currentValue: currentValue(),
+        min,
+        max,
+        step,
+        normalizeValue,
+        formatValue,
+        invalidMessage,
+        onCommit,
+      });
+    };
+
+    outputEl.classList.add("editable-value");
+    outputEl.tabIndex = 0;
+    outputEl.title = title;
+    outputEl.setAttribute("role", "button");
+
+    outputEl.addEventListener("click", (event) => {
+      event.preventDefault();
+      beginEdit();
+    });
+
+    outputEl.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      beginEdit();
+    });
   };
 
   const setStatus = (text) => {
@@ -271,8 +256,8 @@
   const updateAutoCalibrationUi = () => {
     if (autoCalibrateBtn) {
       autoCalibrateBtn.textContent = autoCalibrationState.active
-        ? "Stop Auto Calibration"
-        : "Auto Calibrate With Mic";
+        ? "Stop Auto"
+        : "Auto";
     }
 
     if (calibrateBtn) {
@@ -290,12 +275,7 @@
   const readStoredSettings = () =>
     new Promise((resolve) => {
       chrome.storage.local.get(
-        [
-          STORAGE_KEYS.rate,
-          STORAGE_KEYS.videoDelayMs,
-          STORAGE_KEYS.micDeviceId,
-          STORAGE_KEYS.delayPresets,
-        ],
+        [STORAGE_KEYS.rate, STORAGE_KEYS.videoDelayMs, STORAGE_KEYS.micDeviceId],
         (res) => {
           resolve({
             rate: normalizeRate(res?.[STORAGE_KEYS.rate]),
@@ -304,7 +284,6 @@
               typeof res?.[STORAGE_KEYS.micDeviceId] === "string"
                 ? res[STORAGE_KEYS.micDeviceId]
                 : "",
-            delayPresets: normalizeDelayPresets(res?.[STORAGE_KEYS.delayPresets]),
           });
         },
       );
@@ -344,7 +323,7 @@
   const buildMicOptionLabel = (device, index) => {
     const label = (device?.label || "").trim();
     if (label) return label;
-    return `Microphone ${index + 1}`;
+    return `Mic ${index + 1}`;
   };
 
   const ensureMicDefaultOption = () => {
@@ -353,7 +332,7 @@
     micInputSelect.innerHTML = "";
     const option = document.createElement("option");
     option.value = "";
-    option.textContent = "Default microphone";
+    option.textContent = "Default mic";
     micInputSelect.appendChild(option);
     micInputSelect.value = "";
   };
@@ -378,7 +357,7 @@
 
     const defaultOption = document.createElement("option");
     defaultOption.value = "";
-    defaultOption.textContent = "Default microphone";
+    defaultOption.textContent = "Default mic";
     micInputSelect.appendChild(defaultOption);
 
     mics.forEach((device, index) => {
@@ -397,7 +376,7 @@
       desiredMicDeviceId = preferredDeviceId;
     } else if (preferredDeviceId) {
       writeMicDeviceId("");
-      setAutoCalibrationStatus("Selected mic unavailable. Using default microphone.");
+      setAutoCalibrationStatus("Selected mic unavailable. Using default.");
     }
   };
 
@@ -548,10 +527,10 @@
     if (calibrationStepEl) {
       if (!calibrationState.active) {
         calibrationStepEl.textContent =
-          "Start calibration. Click the sweep to drop a marker line where the moving line is.";
+          "Start manual calibration. Click sweep to place marker.";
       } else {
         calibrationStepEl.textContent =
-          "Click the canvas to place or replace a marker line at the moving line position.";
+          "Click canvas to move marker.";
       }
     }
 
@@ -565,10 +544,10 @@
 
     if (calibrationState.active) {
       calibrationPanel.hidden = false;
-      if (calibrateBtn) calibrateBtn.textContent = "Stop Popup Calibration";
+      if (calibrateBtn) calibrateBtn.textContent = "Stop Manual";
     } else {
       calibrationPanel.hidden = true;
-      if (calibrateBtn) calibrateBtn.textContent = "Start Popup Calibration";
+      if (calibrateBtn) calibrateBtn.textContent = "Manual";
     }
 
     updateAutoCalibrationUi();
@@ -613,7 +592,7 @@
 
   const toggleCalibration = () => {
     if (autoCalibrationState.active) {
-      setStatus("Stop auto calibration first");
+      setStatus("Stop auto first");
       return;
     }
 
@@ -622,7 +601,7 @@
       return;
     }
 
-    const seed = normalizeDelay(delayInput?.value ?? calibrationState.savedDelayMs);
+    const seed = normalizeDelay(currentDelayMs);
     setCalibrationPreviewDelay(seed);
     startCalibration();
   };
@@ -687,7 +666,7 @@
     }
 
     if (wasActive && !silent) {
-      setStatus("Auto calibration stopped");
+      setStatus("Auto stopped");
     }
   };
 
@@ -763,7 +742,7 @@
         : lagSamples;
 
     return {
-      delayMs: normalizeDelay(median(finalSamples)),
+      delayMs: Math.round(normalizeDelay(median(finalSamples))),
       rawMatches: lagSamples.length,
       usedMatches: finalSamples.length,
     };
@@ -780,15 +759,15 @@
 
     if (!result) {
       setAutoCalibrationStatus(
-        "No stable mic match found. Raise speaker volume, move mic closer, and try again.",
+        "No stable match. Raise volume and move mic closer.",
       );
-      setStatus("Auto calibration failed");
+      setStatus("Auto failed");
       return;
     }
 
     writeDelay(result.delayMs, "Auto-calibrated to");
     setAutoCalibrationStatus(
-      `Auto result: ${toDisplayDelay(result.delayMs)} ms (${result.usedMatches}/${pulseCount} pulses used).`,
+      `Auto: ${toDisplayDelay(result.delayMs)} ms (${result.usedMatches}/${pulseCount}).`,
     );
   };
 
@@ -851,8 +830,8 @@
     if (autoCalibrationState.active) return;
 
     if (!navigator.mediaDevices?.getUserMedia) {
-      setAutoCalibrationStatus("Microphone access is not available in this browser.");
-      setStatus("Auto calibration unavailable");
+      setAutoCalibrationStatus("Mic access unavailable.");
+      setStatus("Auto unavailable");
       return;
     }
 
@@ -862,8 +841,8 @@
 
     const context = ensureCalibrationAudioContext();
     if (!context) {
-      setAutoCalibrationStatus("AudioContext is unavailable here.");
-      setStatus("Auto calibration unavailable");
+      setAutoCalibrationStatus("Audio unavailable.");
+      setStatus("Auto unavailable");
       return;
     }
 
@@ -873,7 +852,7 @@
       });
     }
 
-    setAutoCalibrationStatus("Requesting microphone access...");
+    setAutoCalibrationStatus("Requesting mic access...");
 
     let micStream = null;
     const selectedMicDeviceId = getSelectedMicDeviceId();
@@ -886,8 +865,8 @@
       if (!canFallbackToDefault) {
         const detail =
           error?.name === "NotAllowedError" ? "permission denied" : "access failed";
-        setAutoCalibrationStatus(`Microphone ${detail}. Allow mic access and retry.`);
-        setStatus("Auto calibration failed");
+        setAutoCalibrationStatus(`Mic ${detail}. Allow access and retry.`);
+        setStatus("Auto failed");
         return;
       }
 
@@ -897,16 +876,14 @@
         });
         writeMicDeviceId("");
         await refreshMicInputs("");
-        setAutoCalibrationStatus(
-          "Selected microphone is unavailable. Falling back to default microphone.",
-        );
+        setAutoCalibrationStatus("Selected mic unavailable. Using default.");
       } catch (fallbackError) {
         const detail =
           fallbackError?.name === "NotAllowedError"
             ? "permission denied"
             : "access failed";
-        setAutoCalibrationStatus(`Microphone ${detail}. Allow mic access and retry.`);
-        setStatus("Auto calibration failed");
+        setAutoCalibrationStatus(`Mic ${detail}. Allow access and retry.`);
+        setStatus("Auto failed");
         return;
       }
     }
@@ -927,8 +904,8 @@
       micStream.getTracks().forEach((track) => {
         track.stop();
       });
-      setAutoCalibrationStatus("Unable to process mic input on this device.");
-      setStatus("Auto calibration failed");
+      setAutoCalibrationStatus("Can't process mic input.");
+      setStatus("Auto failed");
       return;
     }
 
@@ -965,9 +942,9 @@
       AUTO_CAL_CAPTURE_TAIL_MS;
 
     const activeMicLabel =
-      micInputSelect?.selectedOptions?.[0]?.textContent || "selected microphone";
+      micInputSelect?.selectedOptions?.[0]?.textContent || "selected mic";
     setAutoCalibrationStatus(
-      `Listening for speaker tones now using ${activeMicLabel}. Keep the popup open and mic near the speaker.`,
+      `Listening on ${activeMicLabel}. Keep mic near speaker.`,
     );
 
     updateAutoCalibrationUi();
@@ -977,7 +954,7 @@
 
   const toggleAutoCalibration = () => {
     if (autoCalibrationState.active) {
-      stopAutoCalibration("Auto calibration canceled");
+      stopAutoCalibration("Auto canceled");
       return;
     }
     startAutoCalibration();
@@ -986,6 +963,7 @@
   const scheduleRateWrite = (value) => {
     clearTimeout(rateWriteTimer);
     rateWriteTimer = setTimeout(() => {
+      rateWriteTimer = undefined;
       writeRate(value, "Speed set to", true);
     }, SLIDER_WRITE_DEBOUNCE_MS);
   };
@@ -993,8 +971,31 @@
   const scheduleDelayWrite = (value) => {
     clearTimeout(delayWriteTimer);
     delayWriteTimer = setTimeout(() => {
+      delayWriteTimer = undefined;
       writeDelay(value, "Delay set to", true);
     }, SLIDER_WRITE_DEBOUNCE_MS);
+  };
+
+  const getInputStep = (input, fallback) => {
+    const parsed = Number(input?.step);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  };
+
+  const queueRateUpdate = (value) => {
+    setRateUi(value);
+    scheduleRateWrite(value);
+  };
+
+  const resetRateInput = () => {
+    clearTimeout(rateWriteTimer);
+    writeRate(DEFAULT_RATE, "Speed reset to");
+  };
+
+  const nudgeRateInput = (direction) => {
+    if (!rateInput || !Number.isFinite(direction) || direction === 0) return;
+    const step = getInputStep(rateInput, 0.05);
+    const next = normalizeRate(Number(rateInput.value) + direction * step);
+    queueRateUpdate(next);
   };
 
   const commitRateInput = () => {
@@ -1007,81 +1008,56 @@
     writeDelay(delayInput.value, "Delay set to");
   };
 
-  const applyDelayPresetById = (presetId) => {
-    const preset = delayPresets.find((item) => item.id === presetId);
-    if (!preset) return;
-    writeDelay(preset.delayMs, `Applied "${preset.name}"`);
-  };
-
-  const removeDelayPresetById = (presetId) => {
-    const preset = delayPresets.find((item) => item.id === presetId);
-    if (!preset) return;
-
-    delayPresets = delayPresets.filter((item) => item.id !== presetId);
-    renderDelayPresets();
-    saveDelayPresets(`Removed "${preset.name}"`);
-  };
-
-  const saveCurrentDelayPreset = () => {
-    const currentDelayMs = normalizeDelay(delayInput?.value ?? calibrationState.savedDelayMs);
-    const typedName = normalizeDelayPresetName(delayPresetNameInput?.value ?? "");
-    const presetName = typedName || `Delay ${toDisplayDelay(currentDelayMs)} ms`;
-
-    const existingIndex = delayPresets.findIndex(
-      (preset) => preset.name.toLowerCase() === presetName.toLowerCase(),
-    );
-
-    if (existingIndex >= 0) {
-      delayPresets[existingIndex] = {
-        ...delayPresets[existingIndex],
-        delayMs: currentDelayMs,
-        name: presetName,
-      };
-      if (delayPresetNameInput) {
-        delayPresetNameInput.value = "";
-      }
-      renderDelayPresets();
-      saveDelayPresets(`Updated "${presetName}"`);
-      return;
-    }
-
-    delayPresets = [
-      {
-        id: createDelayPresetId(),
-        name: presetName,
-        delayMs: currentDelayMs,
-      },
-      ...delayPresets,
-    ].slice(0, MAX_DELAY_PRESETS);
-
-    if (delayPresetNameInput) {
-      delayPresetNameInput.value = "";
-    }
-
-    renderDelayPresets();
-    saveDelayPresets(`Saved "${presetName}"`);
-  };
-
   const init = async () => {
     const current = await readStoredSettings();
     calibrationState.savedDelayMs = current.delayMs;
     desiredMicDeviceId = current.micDeviceId;
-    delayPresets = current.delayPresets;
 
     setRateUi(current.rate);
     setDelayUi(current.delayMs);
-    renderDelayPresets();
 
     setCalibrationPreviewDelay(current.delayMs);
 
     rateInput?.addEventListener("input", () => {
-      setRateUi(rateInput.value);
-      scheduleRateWrite(rateInput.value);
+      queueRateUpdate(rateInput.value);
     });
     rateInput?.addEventListener("change", () => {
       clearTimeout(rateWriteTimer);
       commitRateInput();
     });
+    rateInput?.addEventListener("dblclick", (event) => {
+      event.preventDefault();
+      resetRateInput();
+    });
+    rateInput?.addEventListener("keydown", (event) => {
+      const isPlainKey = !event.altKey && !event.ctrlKey && !event.metaKey;
+      const key = event.key.toLowerCase();
+
+      if (event.key === "Home" || (isPlainKey && key === "r")) {
+        event.preventDefault();
+        resetRateInput();
+        return;
+      }
+
+      if (!isPlainKey) return;
+
+      if (event.key === "+" || event.key === "=") {
+        event.preventDefault();
+        nudgeRateInput(1);
+      } else if (event.key === "-" || event.key === "_") {
+        event.preventDefault();
+        nudgeRateInput(-1);
+      }
+    });
+    rateInput?.addEventListener(
+      "wheel",
+      (event) => {
+        if (Math.abs(event.deltaY) < 0.001) return;
+        event.preventDefault();
+        nudgeRateInput(event.deltaY < 0 ? 1 : -1);
+      },
+      { passive: false },
+    );
 
     delayInput?.addEventListener("input", () => {
       setDelayUi(delayInput.value);
@@ -1092,28 +1068,38 @@
       commitDelayInput();
     });
 
-    saveDelayPresetBtn?.addEventListener("click", saveCurrentDelayPreset);
-
-    delayPresetNameInput?.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter") return;
-      event.preventDefault();
-      saveCurrentDelayPreset();
+    setupInlineValueEditor({
+      outputEl: rateValueEl,
+      title: "Click to edit speed",
+      currentValue: () => Number(rateInput?.value ?? DEFAULT_RATE),
+      min: MIN_RATE,
+      max: MAX_RATE,
+      step: getInputStep(rateInput, 0.05),
+      normalizeValue: normalizeRate,
+      formatValue: toDisplayRate,
+      invalidMessage: "Enter a valid speed",
+      onCommit: (value) => {
+        clearTimeout(rateWriteTimer);
+        rateWriteTimer = undefined;
+        writeRate(value, "Speed set to");
+      },
     });
 
-    delayPresetList?.addEventListener("click", (event) => {
-      if (!(event.target instanceof Element)) return;
-      const actionButton = event.target.closest("button[data-action]");
-      if (!actionButton) return;
-
-      const presetId = actionButton.dataset.presetId;
-      if (!presetId) return;
-
-      const action = actionButton.dataset.action;
-      if (action === "apply-delay-preset") {
-        applyDelayPresetById(presetId);
-      } else if (action === "remove-delay-preset") {
-        removeDelayPresetById(presetId);
-      }
+    setupInlineValueEditor({
+      outputEl: delayValueEl,
+      title: "Click to edit delay",
+      currentValue: () => currentDelayMs,
+      min: MIN_VIDEO_DELAY_MS,
+      max: MAX_VIDEO_DELAY_MS,
+      step: 1,
+      normalizeValue: normalizeDelay,
+      formatValue: toDisplayDelay,
+      invalidMessage: "Enter a valid delay",
+      onCommit: (value) => {
+        clearTimeout(delayWriteTimer);
+        delayWriteTimer = undefined;
+        writeDelay(value, "Delay set to");
+      },
     });
 
     micInputSelect?.addEventListener("change", () => {
@@ -1143,15 +1129,23 @@
     calibrationApplyBtn?.addEventListener("click", applyCalibrationDelay);
 
     setAutoCalibrationStatus(
-      "Auto calibration listens for test tones through your mic and estimates delay.",
+      "Auto uses your mic to estimate delay.",
     );
     await refreshMicInputs(desiredMicDeviceId);
     updateCalibrationUi();
   };
 
   window.addEventListener("beforeunload", () => {
-    clearTimeout(rateWriteTimer);
-    clearTimeout(delayWriteTimer);
+    if (rateWriteTimer && rateInput) {
+      clearTimeout(rateWriteTimer);
+      rateWriteTimer = undefined;
+      writeRate(rateInput.value, "", true);
+    }
+    if (delayWriteTimer && delayInput) {
+      clearTimeout(delayWriteTimer);
+      delayWriteTimer = undefined;
+      writeDelay(delayInput.value, "", true);
+    }
     stopAutoCalibration("", true);
   });
 

@@ -12,13 +12,12 @@
         <img class="logo" src="icon.svg" alt="" />
         <div>
           <h1>YT Control</h1>
-          <p class="subhead">Fast playback and clean AV sync.</p>
         </div>
       </header>
 
       <section class="section" aria-label="Playback speed controls">
         <div class="label-row">
-          <label for="rateInput">Playback speed</label>
+          <label for="rateInput">Speed</label>
           <output id="rateValue" for="rateInput">1x</output>
         </div>
         <input
@@ -29,16 +28,17 @@
           max="8"
           step="0.05"
           value="1"
+          title="Double-click to reset to 1x"
         />
         <div class="range-meta" aria-hidden="true">
-          <span>0.1x</span>
+          <span>0.1</span>
           <span>8x</span>
         </div>
       </section>
 
       <section class="section" aria-label="Delay controls">
         <div class="label-row">
-          <label for="delayInput">Bluetooth delay</label>
+          <label for="delayInput">Delay</label>
           <output id="delayValue" for="delayInput">0 ms</output>
         </div>
         <input
@@ -51,26 +51,12 @@
           value="0"
         />
         <div class="range-meta" aria-hidden="true">
-          <span>0 ms</span>
+          <span>0</span>
           <span>2500 ms</span>
         </div>
 
-        <div class="saved-delay-section" aria-label="Saved Bluetooth delays">
-          <label for="delayPresetNameInput">Save current delay</label>
-          <div class="save-delay-row">
-            <input
-              id="delayPresetNameInput"
-              type="text"
-              maxlength="24"
-              placeholder="Name this delay (e.g., AirPods)"
-            />
-            <button id="saveDelayPresetBtn" type="button">Save</button>
-          </div>
-          <div id="delayPresetList" class="saved-delay-list"></div>
-        </div>
-
         <div class="mic-row">
-          <label for="micInputSelect">Mic input</label>
+          <label for="micInputSelect">Mic</label>
           <div class="mic-input-row">
             <select id="micInputSelect" aria-label="Microphone input"></select>
             <button id="refreshMicInputsBtn" type="button">Refresh</button>
@@ -78,12 +64,12 @@
         </div>
 
         <div class="action-row">
-          <button id="autoCalibrateBtn" class="soft" type="button">Auto Calibrate</button>
-          <button id="calibrateBtn" type="button">Manual Calibration</button>
+          <button id="autoCalibrateBtn" class="soft" type="button">Auto</button>
+          <button id="calibrateBtn" type="button">Manual</button>
         </div>
 
         <p id="autoCalibrationStatus" class="calibration-meta auto-calibration-meta">
-          Auto calibration listens for test tones through your mic and estimates delay.
+          Auto uses your mic to estimate delay.
         </p>
 
         <div id="calibrationPanel" class="calibration-panel" hidden>
@@ -94,11 +80,11 @@
             aria-label="Calibration sweep preview"
           ></canvas>
           <p id="calibrationStep" class="calibration-meta">
-            Click the sweep to drop a marker line where the moving line is.
+            Click the sweep to place a marker.
           </p>
 
           <div class="label-row small-gap">
-            <label for="calibrationOffsetRange">Preview offset</label>
+            <label for="calibrationOffsetRange">Offset</label>
             <output id="calibrationValue" for="calibrationOffsetRange">0 ms</output>
           </div>
           <input
@@ -110,14 +96,11 @@
             step="5"
             value="0"
           />
-          <button id="calibrationApplyBtn" type="button">Apply Preview Delay</button>
+          <button id="calibrationApplyBtn" type="button">Apply Offset</button>
         </div>
       </section>
 
       <p id="status" role="status" aria-live="polite"></p>
-      <p class="hint">
-        Keep this popup open while calibrating. Auto mode is usually fastest and most accurate.
-      </p>
     </main>
     <script src="popup.js"></script>
   </body>
