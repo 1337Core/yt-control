@@ -58,8 +58,6 @@
   const statusEl = document.getElementById("status");
 
   let statusTimer;
-  let rateWriteTimer;
-  let delayWriteTimer;
   let currentDelayMs = DEFAULT_VIDEO_DELAY_MS;
 
   const calibrationState = {
@@ -103,10 +101,7 @@
     return Math.min(MAX_VIDEO_DELAY_MS, Math.max(MIN_VIDEO_DELAY_MS, parsed));
   };
 
-  const toDisplayRate = (value) => {
-    const rounded = Math.round(value * 100) / 100;
-    return Number.isInteger(rounded) ? String(rounded) : String(rounded);
-  };
+  const toDisplayRate = (value) => String(Math.round(value * 100) / 100);
 
   const toDisplayDelay = (value) => String(normalizeDelay(value));
 
@@ -289,31 +284,39 @@
       );
     });
 
-  const writeRate = (value, source, silentStatus = false) => {
-    const normalized = normalizeRate(value);
-    chrome.storage.local.set({ [STORAGE_KEYS.rate]: normalized }, () => {
-      setRateUi(normalized);
-      if (!silentStatus && source) {
-        setStatus(`${source} ${toDisplayRate(normalized)}x`);
-      }
-    });
-  };
+  const createStorageWriter =
+    ({ storageKey, normalizeValue, applyUi, formatStatus, onAfterWrite }) =>
+    (value, source, silentStatus = false) => {
+      const normalized = normalizeValue(value);
+      chrome.storage.local.set({ [storageKey]: normalized }, () => {
+        applyUi(normalized);
+        onAfterWrite?.(normalized);
 
-  const writeDelay = (value, source, silentStatus = false) => {
-    const normalized = normalizeDelay(value);
-    chrome.storage.local.set({ [STORAGE_KEYS.videoDelayMs]: normalized }, () => {
-      setDelayUi(normalized);
+        if (!silentStatus && source) {
+          setStatus(`${source} ${formatStatus(normalized)}`);
+        }
+      });
+    };
 
+  const writeRate = createStorageWriter({
+    storageKey: STORAGE_KEYS.rate,
+    normalizeValue: normalizeRate,
+    applyUi: setRateUi,
+    formatStatus: (normalized) => `${toDisplayRate(normalized)}x`,
+  });
+
+  const writeDelay = createStorageWriter({
+    storageKey: STORAGE_KEYS.videoDelayMs,
+    normalizeValue: normalizeDelay,
+    applyUi: setDelayUi,
+    formatStatus: (normalized) => `${toDisplayDelay(normalized)} ms`,
+    onAfterWrite: (normalized) => {
       calibrationState.savedDelayMs = normalized;
       if (!calibrationState.active) {
         setCalibrationPreviewDelay(normalized);
       }
-
-      if (!silentStatus && source) {
-        setStatus(`${source} ${toDisplayDelay(normalized)} ms`);
-      }
-    });
-  };
+    },
+  });
 
   const writeMicDeviceId = (value) => {
     desiredMicDeviceId = typeof value === "string" ? value : "";
@@ -960,21 +963,43 @@
     startAutoCalibration();
   };
 
-  const scheduleRateWrite = (value) => {
-    clearTimeout(rateWriteTimer);
-    rateWriteTimer = setTimeout(() => {
-      rateWriteTimer = undefined;
-      writeRate(value, "Speed set to", true);
-    }, SLIDER_WRITE_DEBOUNCE_MS);
+  const createDebouncedWriter = (writeFn) => {
+    let timerId = null;
+
+    const cancel = () => {
+      if (timerId == null) return;
+      clearTimeout(timerId);
+      timerId = null;
+    };
+
+    return {
+      schedule(value) {
+        cancel();
+        timerId = setTimeout(() => {
+          timerId = null;
+          writeFn(value, true);
+        }, SLIDER_WRITE_DEBOUNCE_MS);
+      },
+      commit(value) {
+        cancel();
+        writeFn(value, false);
+      },
+      flush(value) {
+        if (timerId == null) return;
+        cancel();
+        writeFn(value, true);
+      },
+      cancel,
+    };
   };
 
-  const scheduleDelayWrite = (value) => {
-    clearTimeout(delayWriteTimer);
-    delayWriteTimer = setTimeout(() => {
-      delayWriteTimer = undefined;
-      writeDelay(value, "Delay set to", true);
-    }, SLIDER_WRITE_DEBOUNCE_MS);
-  };
+  const rateWriter = createDebouncedWriter((value, silentStatus) => {
+    writeRate(value, "Speed set to", silentStatus);
+  });
+
+  const delayWriter = createDebouncedWriter((value, silentStatus) => {
+    writeDelay(value, "Delay set to", silentStatus);
+  });
 
   const getInputStep = (input, fallback) => {
     const parsed = Number(input?.step);
@@ -983,11 +1008,11 @@
 
   const queueRateUpdate = (value) => {
     setRateUi(value);
-    scheduleRateWrite(value);
+    rateWriter.schedule(value);
   };
 
   const resetRateInput = () => {
-    clearTimeout(rateWriteTimer);
+    rateWriter.cancel();
     writeRate(DEFAULT_RATE, "Speed reset to");
   };
 
@@ -996,16 +1021,6 @@
     const step = getInputStep(rateInput, 0.05);
     const next = normalizeRate(Number(rateInput.value) + direction * step);
     queueRateUpdate(next);
-  };
-
-  const commitRateInput = () => {
-    if (!rateInput) return;
-    writeRate(rateInput.value, "Speed set to");
-  };
-
-  const commitDelayInput = () => {
-    if (!delayInput) return;
-    writeDelay(delayInput.value, "Delay set to");
   };
 
   const init = async () => {
@@ -1022,8 +1037,7 @@
       queueRateUpdate(rateInput.value);
     });
     rateInput?.addEventListener("change", () => {
-      clearTimeout(rateWriteTimer);
-      commitRateInput();
+      rateWriter.commit(rateInput.value);
     });
     rateInput?.addEventListener("dblclick", (event) => {
       event.preventDefault();
@@ -1061,11 +1075,10 @@
 
     delayInput?.addEventListener("input", () => {
       setDelayUi(delayInput.value);
-      scheduleDelayWrite(delayInput.value);
+      delayWriter.schedule(delayInput.value);
     });
     delayInput?.addEventListener("change", () => {
-      clearTimeout(delayWriteTimer);
-      commitDelayInput();
+      delayWriter.commit(delayInput.value);
     });
 
     setupInlineValueEditor({
@@ -1079,9 +1092,7 @@
       formatValue: toDisplayRate,
       invalidMessage: "Enter a valid speed",
       onCommit: (value) => {
-        clearTimeout(rateWriteTimer);
-        rateWriteTimer = undefined;
-        writeRate(value, "Speed set to");
+        rateWriter.commit(value);
       },
     });
 
@@ -1096,9 +1107,7 @@
       formatValue: toDisplayDelay,
       invalidMessage: "Enter a valid delay",
       onCommit: (value) => {
-        clearTimeout(delayWriteTimer);
-        delayWriteTimer = undefined;
-        writeDelay(value, "Delay set to");
+        delayWriter.commit(value);
       },
     });
 
@@ -1136,16 +1145,8 @@
   };
 
   window.addEventListener("beforeunload", () => {
-    if (rateWriteTimer && rateInput) {
-      clearTimeout(rateWriteTimer);
-      rateWriteTimer = undefined;
-      writeRate(rateInput.value, "", true);
-    }
-    if (delayWriteTimer && delayInput) {
-      clearTimeout(delayWriteTimer);
-      delayWriteTimer = undefined;
-      writeDelay(delayInput.value, "", true);
-    }
+    if (rateInput) rateWriter.flush(rateInput.value);
+    if (delayInput) delayWriter.flush(delayInput.value);
     stopAutoCalibration("", true);
   });
 

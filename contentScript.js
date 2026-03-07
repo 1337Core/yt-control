@@ -14,6 +14,12 @@
 
   const USER_INTENT_WINDOW_MS = 1200;
   const REAPPLY_DELAY_MS = 200;
+  const TIMELINE_EVENTS = ["seeking", "ratechange", "loadedmetadata", "emptied"];
+  const NAVIGATION_EVENTS = [
+    "yt-navigate-finish",
+    "yt-page-data-updated",
+    "spfdone",
+  ];
 
   const trackedVideos = new WeakSet();
   const delayedRenderers = new WeakMap();
@@ -173,18 +179,11 @@
       this.originalVideoVisibility = this.video.style.visibility;
       this.setVideoHidden(false);
 
-      this.video.addEventListener("seeking", this.onTimelineMutation, {
-        passive: true,
-      });
-      this.video.addEventListener("ratechange", this.onTimelineMutation, {
-        passive: true,
-      });
-      this.video.addEventListener("loadedmetadata", this.onTimelineMutation, {
-        passive: true,
-      });
-      this.video.addEventListener("emptied", this.onTimelineMutation, {
-        passive: true,
-      });
+      for (const eventName of TIMELINE_EVENTS) {
+        this.video.addEventListener(eventName, this.onTimelineMutation, {
+          passive: true,
+        });
+      }
 
       this.resizeObserver = new ResizeObserver(this.onLayoutChange);
       this.resizeObserver.observe(this.video);
@@ -226,10 +225,9 @@
       this.resizeObserver?.disconnect();
       this.resizeObserver = null;
 
-      this.video.removeEventListener("seeking", this.onTimelineMutation);
-      this.video.removeEventListener("ratechange", this.onTimelineMutation);
-      this.video.removeEventListener("loadedmetadata", this.onTimelineMutation);
-      this.video.removeEventListener("emptied", this.onTimelineMutation);
+      for (const eventName of TIMELINE_EVENTS) {
+        this.video.removeEventListener(eventName, this.onTimelineMutation);
+      }
 
       this.clearFrames();
 
@@ -552,9 +550,9 @@
 
   const listenNavigation = () => {
     const onNavigate = () => scan();
-    window.addEventListener("yt-navigate-finish", onNavigate, true);
-    window.addEventListener("yt-page-data-updated", onNavigate, true);
-    window.addEventListener("spfdone", onNavigate, true);
+    for (const eventName of NAVIGATION_EVENTS) {
+      window.addEventListener(eventName, onNavigate, true);
+    }
   };
 
   const init = async () => {
