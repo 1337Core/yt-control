@@ -530,10 +530,10 @@
     if (calibrationStepEl) {
       if (!calibrationState.active) {
         calibrationStepEl.textContent =
-          "Start manual calibration. Click sweep to place marker.";
+          "Click Manual, then click the sweep to place the marker.";
       } else {
         calibrationStepEl.textContent =
-          "Click canvas to move marker.";
+          "Click the graph to move the marker.";
       }
     }
 
@@ -1138,7 +1138,7 @@
     calibrationApplyBtn?.addEventListener("click", applyCalibrationDelay);
 
     setAutoCalibrationStatus(
-      "Auto uses your mic to estimate delay.",
+      "Auto checks delay with your mic.",
     );
     await refreshMicInputs(desiredMicDeviceId);
     updateCalibrationUi();
