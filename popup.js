@@ -1,17 +1,28 @@
 (() => {
-  const STORAGE_KEYS = {
-    rate: "yt_control_playback_rate",
-    videoDelayMs: "yt_control_video_delay_ms",
-    micDeviceId: "yt_control_mic_device_id",
-  };
+  const shared = globalThis.YtControlShared;
+  if (!shared) {
+    throw new Error("YT Control shared helpers unavailable.");
+  }
 
-  const DEFAULT_RATE = 1;
-  const MIN_RATE = 0.1;
-  const MAX_RATE = 8;
+  const {
+    DELAY_RANGE,
+    RATE_RANGE,
+    STORAGE_KEYS,
+    normalizeDelay,
+    normalizeRate,
+    readStorage,
+    toDisplayDelay,
+    toDisplayRate,
+    writeStorage,
+  } = shared;
 
-  const DEFAULT_VIDEO_DELAY_MS = 0;
-  const MIN_VIDEO_DELAY_MS = 0;
-  const MAX_VIDEO_DELAY_MS = 2500;
+  const DEFAULT_RATE = RATE_RANGE.defaultValue;
+  const MIN_RATE = RATE_RANGE.min;
+  const MAX_RATE = RATE_RANGE.max;
+
+  const DEFAULT_VIDEO_DELAY_MS = DELAY_RANGE.defaultValue;
+  const MIN_VIDEO_DELAY_MS = DELAY_RANGE.min;
+  const MAX_VIDEO_DELAY_MS = DELAY_RANGE.max;
 
   const STATUS_MS = 1800;
   const SLIDER_WRITE_DEBOUNCE_MS = 120;
@@ -88,22 +99,6 @@
   };
 
   let desiredMicDeviceId = "";
-
-  const normalizeRate = (value) => {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_RATE;
-    return Math.min(MAX_RATE, Math.max(MIN_RATE, parsed));
-  };
-
-  const normalizeDelay = (value) => {
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) return DEFAULT_VIDEO_DELAY_MS;
-    return Math.min(MAX_VIDEO_DELAY_MS, Math.max(MIN_VIDEO_DELAY_MS, parsed));
-  };
-
-  const toDisplayRate = (value) => String(Math.round(value * 100) / 100);
-
-  const toDisplayDelay = (value) => String(normalizeDelay(value));
 
   const setRateUi = (value) => {
     const normalized = normalizeRate(value);
@@ -268,27 +263,23 @@
   };
 
   const readStoredSettings = () =>
-    new Promise((resolve) => {
-      chrome.storage.local.get(
-        [STORAGE_KEYS.rate, STORAGE_KEYS.videoDelayMs, STORAGE_KEYS.micDeviceId],
-        (res) => {
-          resolve({
-            rate: normalizeRate(res?.[STORAGE_KEYS.rate]),
-            delayMs: normalizeDelay(res?.[STORAGE_KEYS.videoDelayMs]),
-            micDeviceId:
-              typeof res?.[STORAGE_KEYS.micDeviceId] === "string"
-                ? res[STORAGE_KEYS.micDeviceId]
-                : "",
-          });
-        },
-      );
-    });
+    readStorage(
+      [STORAGE_KEYS.rate, STORAGE_KEYS.videoDelayMs, STORAGE_KEYS.micDeviceId],
+      (stored) => ({
+        rate: normalizeRate(stored[STORAGE_KEYS.rate]),
+        delayMs: normalizeDelay(stored[STORAGE_KEYS.videoDelayMs]),
+        micDeviceId:
+          typeof stored[STORAGE_KEYS.micDeviceId] === "string"
+            ? stored[STORAGE_KEYS.micDeviceId]
+            : "",
+      }),
+    );
 
   const createStorageWriter =
     ({ storageKey, normalizeValue, applyUi, formatStatus, onAfterWrite }) =>
     (value, source, silentStatus = false) => {
       const normalized = normalizeValue(value);
-      chrome.storage.local.set({ [storageKey]: normalized }, () => {
+      writeStorage({ [storageKey]: normalized }, () => {
         applyUi(normalized);
         onAfterWrite?.(normalized);
 
@@ -320,7 +311,7 @@
 
   const writeMicDeviceId = (value) => {
     desiredMicDeviceId = typeof value === "string" ? value : "";
-    chrome.storage.local.set({ [STORAGE_KEYS.micDeviceId]: desiredMicDeviceId });
+    writeStorage({ [STORAGE_KEYS.micDeviceId]: desiredMicDeviceId });
   };
 
   const buildMicOptionLabel = (device, index) => {
@@ -1006,6 +997,18 @@
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
   };
 
+  const bindSliderControl = ({ input, onInput, onCommit }) => {
+    if (!input) return;
+
+    input.addEventListener("input", () => {
+      onInput(input.value);
+    });
+
+    input.addEventListener("change", () => {
+      onCommit(input.value);
+    });
+  };
+
   const queueRateUpdate = (value) => {
     setRateUi(value);
     rateWriter.schedule(value);
@@ -1033,16 +1036,19 @@
 
     setCalibrationPreviewDelay(current.delayMs);
 
-    rateInput?.addEventListener("input", () => {
-      queueRateUpdate(rateInput.value);
+    bindSliderControl({
+      input: rateInput,
+      onInput: queueRateUpdate,
+      onCommit: (value) => {
+        rateWriter.commit(value);
+      },
     });
-    rateInput?.addEventListener("change", () => {
-      rateWriter.commit(rateInput.value);
-    });
+
     rateInput?.addEventListener("dblclick", (event) => {
       event.preventDefault();
       resetRateInput();
     });
+
     rateInput?.addEventListener("keydown", (event) => {
       const isPlainKey = !event.altKey && !event.ctrlKey && !event.metaKey;
       const key = event.key.toLowerCase();
@@ -1073,12 +1079,15 @@
       { passive: false },
     );
 
-    delayInput?.addEventListener("input", () => {
-      setDelayUi(delayInput.value);
-      delayWriter.schedule(delayInput.value);
-    });
-    delayInput?.addEventListener("change", () => {
-      delayWriter.commit(delayInput.value);
+    bindSliderControl({
+      input: delayInput,
+      onInput: (value) => {
+        setDelayUi(value);
+        delayWriter.schedule(value);
+      },
+      onCommit: (value) => {
+        delayWriter.commit(value);
+      },
     });
 
     setupInlineValueEditor({

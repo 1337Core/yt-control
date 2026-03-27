@@ -23,7 +23,7 @@
   "content_scripts": [
     {
       "matches": ["*://*.youtube.com/*"],
-      "js": ["contentScript.js"],
+      "js": ["shared.js", "contentScript.js"],
       "run_at": "document_idle"
     }
   ]

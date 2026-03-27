@@ -1,16 +1,22 @@
 (function () {
-  const STORAGE_KEYS = {
-    rate: "yt_control_playback_rate",
-    videoDelayMs: "yt_control_video_delay_ms",
-  };
+  const shared = globalThis.YtControlShared;
+  if (!shared) {
+    throw new Error("YT Control shared helpers unavailable.");
+  }
 
-  const DEFAULT_RATE = 1;
-  const MIN_RATE = 0.1;
-  const MAX_RATE = 8;
+  const {
+    DELAY_RANGE,
+    RATE_RANGE,
+    STORAGE_KEYS,
+    normalizeDelay,
+    normalizeRate,
+    readStorage,
+    writeStorage,
+  } = shared;
 
-  const DEFAULT_VIDEO_DELAY_MS = 0;
-  const MIN_VIDEO_DELAY_MS = 0;
-  const MAX_VIDEO_DELAY_MS = 2500;
+  const DEFAULT_RATE = RATE_RANGE.defaultValue;
+  const DEFAULT_VIDEO_DELAY_MS = DELAY_RANGE.defaultValue;
+  const MAX_VIDEO_DELAY_MS = DELAY_RANGE.max;
 
   const USER_INTENT_WINDOW_MS = 1200;
   const REAPPLY_DELAY_MS = 200;
@@ -41,44 +47,14 @@
     );
   };
 
-  const normalizeRate = (value) => {
-    const rate = Number(value);
-    if (!Number.isFinite(rate) || rate <= 0) return DEFAULT_RATE;
-    return Math.min(MAX_RATE, Math.max(MIN_RATE, rate));
-  };
-
-  const normalizeVideoDelay = (value) => {
-    const delay = Number(value);
-    if (!Number.isFinite(delay)) return DEFAULT_VIDEO_DELAY_MS;
-    return Math.min(MAX_VIDEO_DELAY_MS, Math.max(MIN_VIDEO_DELAY_MS, delay));
-  };
-
   const loadSettings = () =>
-    new Promise((resolve) => {
-      try {
-        chrome.storage?.local.get(
-          [STORAGE_KEYS.rate, STORAGE_KEYS.videoDelayMs],
-          (res) => {
-            resolve({
-              rate: normalizeRate(res?.[STORAGE_KEYS.rate]),
-              videoDelayMs: normalizeVideoDelay(res?.[STORAGE_KEYS.videoDelayMs]),
-            });
-          },
-        );
-      } catch (_) {
-        resolve({
-          rate: DEFAULT_RATE,
-          videoDelayMs: DEFAULT_VIDEO_DELAY_MS,
-        });
-      }
-    });
+    readStorage([STORAGE_KEYS.rate, STORAGE_KEYS.videoDelayMs], (stored) => ({
+      rate: normalizeRate(stored[STORAGE_KEYS.rate]),
+      videoDelayMs: normalizeDelay(stored[STORAGE_KEYS.videoDelayMs]),
+    }));
 
   const saveRate = (rate) => {
-    try {
-      chrome.storage?.local.set({ [STORAGE_KEYS.rate]: normalizeRate(rate) });
-    } catch (_) {
-      // storage may be unavailable in rare contexts
-    }
+    writeStorage({ [STORAGE_KEYS.rate]: normalizeRate(rate) });
   };
 
   const applyRate = (video) => {
@@ -142,7 +118,7 @@
     }
 
     setDelay(delayMs) {
-      const nextDelay = normalizeVideoDelay(delayMs);
+      const nextDelay = normalizeDelay(delayMs);
       if (nextDelay === this.delayMs && (nextDelay === 0 || this.enabled)) return;
 
       const hasChanged = nextDelay !== this.delayMs;
@@ -451,8 +427,14 @@
     renderer.setDelay(desiredVideoDelayMs);
   };
 
+  const syncVideo = (video) => {
+    if (!video) return;
+    applyRate(video);
+    applyVideoDelay(video);
+  };
+
   const attach = (video) => {
-    if (!video || trackedVideos.has(video)) return;
+    if (!video || trackedVideos.has(video)) return false;
     trackedVideos.add(video);
 
     const reapply = () => applyRate(video);
@@ -462,17 +444,23 @@
       passive: true,
     });
 
-    reapply();
-    applyVideoDelay(video);
+    return true;
+  };
+
+  const forEachPlayerVideo = (callback) => {
+    if (!isPlayerPage()) return;
+    document.querySelectorAll("video").forEach(callback);
   };
 
   const scan = () => {
-    if (!isPlayerPage()) return;
-    document.querySelectorAll("video").forEach((video) => {
+    forEachPlayerVideo((video) => {
       attach(video);
-      applyRate(video);
-      applyVideoDelay(video);
+      syncVideo(video);
     });
+  };
+
+  const syncTrackedVideos = () => {
+    forEachPlayerVideo(syncVideo);
   };
 
   const listenStorageChanges = () => {
@@ -488,14 +476,14 @@
       }
 
       if (hasOwn(changes, STORAGE_KEYS.videoDelayMs)) {
-        desiredVideoDelayMs = normalizeVideoDelay(
+        desiredVideoDelayMs = normalizeDelay(
           changes[STORAGE_KEYS.videoDelayMs]?.newValue,
         );
         shouldRescan = true;
       }
 
       if (shouldRescan) {
-        scan();
+        syncTrackedVideos();
       }
     });
   };
@@ -510,8 +498,12 @@
           if (!node || node.nodeType !== 1) continue;
           if (node.tagName === "VIDEO") {
             attach(node);
+            syncVideo(node);
           } else if (node.querySelectorAll) {
-            node.querySelectorAll("video").forEach(attach);
+            node.querySelectorAll("video").forEach((video) => {
+              attach(video);
+              syncVideo(video);
+            });
           }
         }
       }
