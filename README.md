@@ -29,3 +29,10 @@ latency.
    the selected mic near the speaker until calibration finishes.
 6. optional fallback: click `Manual` and use the manual sweep preview if auto
    calibration cannot detect a stable result
+
+## troubleshooting
+
+- If auto calibration says the mic is blocked after reloading or moving the
+  unpacked extension, open the extension's details page in Chrome, go to `Site
+  settings`, allow `Microphone`, and retry. Chrome treats each extension ID as a
+  separate site permission origin.

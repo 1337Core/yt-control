@@ -9,7 +9,6 @@
     "./**/*.tsx"
   ],
   "compilerOptions": {
-    "allowJs": true,
     "paths": {
       "~*": [
         "./*"
