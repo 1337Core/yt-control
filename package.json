@@ -4,6 +4,7 @@
   "version": "1.5.0",
   "description": "Remember your YouTube speed and add Bluetooth video sync delay.",
   "author": "Noah Becker",
+  "packageManager": "pnpm@10.17.1",
   "scripts": {
     "dev": "plasmo dev",
     "build": "plasmo build",

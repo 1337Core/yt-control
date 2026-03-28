@@ -6,8 +6,8 @@ latency.
 
 ## develop
 
-1. `bun install`
-2. `bun run dev`
+1. `pnpm install`
+2. `pnpm dev`
 3. open `chrome://extensions`
 4. turn on developer mode
 5. click load unpacked
@@ -15,7 +15,7 @@ latency.
 
 ## build
 
-1. `bun run build`
+1. `pnpm build`
 2. load `build/chrome-mv3-prod` as an unpacked extension
 
 ## use
@@ -23,7 +23,7 @@ latency.
 1. open a YouTube video page
 2. click the extension icon
 3. set playback speed
-4. set Bluetooth video delay in milliseconds
+4. set Bluetooth video delay
 5. optional: choose the mic source from `Mic`, then click `Auto` to estimate
    delay from speaker output. Keep the popup open, allow mic access, and keep
    the selected mic near the speaker until calibration finishes.
