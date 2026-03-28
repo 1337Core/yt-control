@@ -1,18 +1,18 @@
-(function () {
-  const shared = globalThis.YtControlShared;
-  if (!shared) {
-    throw new Error("YT Control shared helpers unavailable.");
-  }
+import {
+  DELAY_RANGE,
+  RATE_RANGE,
+  STORAGE_KEYS,
+  normalizeDelay,
+  normalizeRate,
+  readStorage,
+  writeStorage
+} from "~lib/settings"
 
-  const {
-    DELAY_RANGE,
-    RATE_RANGE,
-    STORAGE_KEYS,
-    normalizeDelay,
-    normalizeRate,
-    readStorage,
-    writeStorage,
-  } = shared;
+/** @type {import("plasmo").PlasmoCSConfig} */
+export const config = {
+  matches: ["*://*.youtube.com/*"],
+  run_at: "document_idle"
+}
 
   const DEFAULT_RATE = RATE_RANGE.defaultValue;
   const DEFAULT_VIDEO_DELAY_MS = DELAY_RANGE.defaultValue;
@@ -559,9 +559,8 @@
     listenStorageChanges();
   };
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init, { once: true });
-  } else {
-    init();
-  }
-})();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", init, { once: true })
+} else {
+  init()
+}
