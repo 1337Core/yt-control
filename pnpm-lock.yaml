@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@plasmohq/storage':
-        specifier: 1.12.0
-        version: 1.12.0(react@18.2.0)
+        specifier: 1.15.0
+        version: 1.15.0(react@18.2.0)
       plasmo:
         specifier: 0.90.5
         version: 0.90.5(@swc/core@1.15.21(@swc/helpers@0.5.20))(@swc/helpers@0.5.20)(@types/node@20.11.5)(postcss@8.5.8)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -1250,10 +1250,10 @@ packages:
     resolution: {integrity: sha512-/3oVbajt+DRqtbM0RkKFtfyZR8DVjcsYpj1jHqPParGVBiXwgP0D/8Bj5p5/5Iqihs08gzasTcjKcwQKKdj0og==}
     engines: {parcel: '>= 2.7.0'}
 
-  '@plasmohq/storage@1.12.0':
-    resolution: {integrity: sha512-LoCyO0PXl609ee8QKVEwVpkTyD/8WjYQhd0sxFomLxbdxsZC0LD4n8nv4nSegP5X8lYQBQnR/LMq4ZXoQh87wA==}
+  '@plasmohq/storage@1.15.0':
+    resolution: {integrity: sha512-zBZ2NyVyvZlql2XHsjkZDL0+bqF6lir9RygeTnkYGF253M8DZttuSvjpsmpK6OWYmRXjhEqJeubd3+Zq9kuZ0w==}
     peerDependencies:
-      react: ^16.8.6 || ^17 || ^18
+      react: ^16.8.6 || ^17 || ^18 || ^19.0.0
     peerDependenciesMeta:
       react:
         optional: true
@@ -4532,7 +4532,7 @@ snapshots:
       - walrus
       - whiskers
 
-  '@plasmohq/storage@1.12.0(react@18.2.0)':
+  '@plasmohq/storage@1.15.0(react@18.2.0)':
     dependencies:
       pify: 6.1.0
     optionalDependencies:
