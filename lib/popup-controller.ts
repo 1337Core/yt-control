@@ -68,7 +68,7 @@ type AutoCalibrationState = {
   micStream: MediaStream | null
   micSource: MediaStreamAudioSourceNode | null
   analyser: AnalyserNode | null
-  frequencyData: Float32Array | null
+  frequencyData: Float32Array<ArrayBuffer> | null
   toneBin: number
   baselineDb: number
   scheduledPulseTimesMs: number[]
@@ -1119,7 +1119,7 @@ export const createPopupController = (
     autoCalibrationState.micSource = source
     autoCalibrationState.analyser = analyser
     autoCalibrationState.frequencyData = new Float32Array(
-      analyser.frequencyBinCount
+      new ArrayBuffer(Float32Array.BYTES_PER_ELEMENT * analyser.frequencyBinCount)
     )
     autoCalibrationState.baselineDb = -120
     autoCalibrationState.lastDetectionAtMs = -Infinity
